@@ -1,0 +1,1 @@
+import {NextResponse} from "next/server";export async function POST(req:Request){const r=NextResponse.redirect(new URL("/",req.url));r.cookies.set("merchantpay_session","",{httpOnly:true,path:"/",maxAge:0});return r}

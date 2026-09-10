@@ -1,0 +1,3 @@
+"use client";import {useEffect,useState} from "react";
+type Props={name:string;logoData:string|null};
+export default function LiveMerchantBrand({name,logoData}:Props){const [brand,setBrand]=useState({name,logoData});useEffect(()=>{const h=(e:any)=>{const b=e.detail?.business;if(b)setBrand({name:b.name||name,logoData:b.logoData??null})};window.addEventListener("merchantpay:preferences",h);return()=>window.removeEventListener("merchantpay:preferences",h)},[name]);return <span className="brand-inline profile-brand">{brand.logoData?<img className="dashboard-logo" src={brand.logoData} alt={`${brand.name} logo`}/>:<span className="brand-placeholder">{brand.name?.trim()?.[0]?.toUpperCase()||"M"}</span>}<strong>{brand.name}</strong></span>}

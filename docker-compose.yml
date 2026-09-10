@@ -1,0 +1,11 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: merchantpay
+      POSTGRES_PASSWORD: merchantpay
+      POSTGRES_DB: merchantpay
+    ports: ["5432:5432"]
+    volumes: ["merchantpay_pgdata:/var/lib/postgresql/data"]
+volumes:
+  merchantpay_pgdata:

@@ -1,0 +1,4 @@
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { db } from "@/lib/db";
+export async function POST(req:Request){const c=await cookies();const uid=c.get("merchantpay_session")?.value?.split(".")[0];if(!uid)return NextResponse.json({error:"Not authenticated."},{status:401});const m=await db.businessMember.findFirst({where:{userId:uid}});if(!m)return NextResponse.json({error:"Business not found."},{status:404});const b=await req.json();const subject=String(b.subject||"").trim();const message=String(b.message||"").trim();if(!subject||!message)return NextResponse.json({error:"Subject and message are required."},{status:400});if(subject.length>120||message.length>5000)return NextResponse.json({error:"Feedback is too long."},{status:400});await db.adminFeedback.create({data:{businessId:m.businessId,userId:uid,subject,message}});return NextResponse.json({ok:true});}

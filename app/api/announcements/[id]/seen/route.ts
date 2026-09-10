@@ -1,0 +1,2 @@
+import {NextResponse} from "next/server";import {cookies} from "next/headers";import {db} from "@/lib/db";
+export async function POST(_:Request,{params}:{params:Promise<{id:string}>}){const uid=(await cookies()).get("merchantpay_session")?.value?.split(".")[0];if(!uid)return NextResponse.json({error:"Not authenticated"},{status:401});const {id}=await params;await db.announcementView.upsert({where:{announcementId_userId:{announcementId:id,userId:uid}},create:{announcementId:id,userId:uid},update:{}});return NextResponse.json({ok:true})}

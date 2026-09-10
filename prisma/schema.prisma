@@ -1,0 +1,344 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+model User {
+  id                String                   @id @default(cuid())
+  email             String                   @unique
+  name              String?
+  passwordHash      String
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  isAdmin           Boolean                  @default(false)
+  theme             String                   @default("indigo")
+  appearance        String                   @default("light")
+  businesses        BusinessMember[]
+  feedbacks         AdminFeedback[]
+  announcementViews AnnouncementView[]
+  planChanges       SubscriptionPlanChange[]
+}
+
+model Business {
+  id                   String                   @id @default(cuid())
+  name                 String
+  phone                String?
+  mobileMoneyPhone     String?
+  mobileMoneyNetwork   String?
+  currency             String                   @default("UGX")
+  logoData             String?                  @db.Text
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  suspended            Boolean                  @default(false)
+  suspensionReason     String?                  @db.Text
+  members              BusinessMember[]
+  customers            Customer[]
+  products             Product[]
+  items                Item[]
+  invoices             Invoice[]
+  payments             Payment[]
+  ledgerEntries        LedgerEntry[]
+  payouts              MerchantPayout[]
+  subscriptionPayments SubscriptionPayment[]
+  subscription         Subscription?
+  feedbacks            AdminFeedback[]
+  announcementViews    AnnouncementView[]
+  planChanges          SubscriptionPlanChange[]
+}
+
+model BusinessMember {
+  id         String   @id @default(cuid())
+  businessId String
+  userId     String
+  role       String   @default("OWNER")
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, userId])
+}
+
+model Subscription {
+  id                String                   @id @default(cuid())
+  businessId        String                   @unique
+  plan              String                   @default("FREE")
+  status            SubscriptionStatus       @default(ACTIVE)
+  maxInvoices       Int                      @default(5)
+  startsAt          DateTime                 @default(now())
+  expiresAt         DateTime?
+  lastRenewedAt     DateTime?
+  lastPlanChangedAt DateTime?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  business          Business                 @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  planChanges       SubscriptionPlanChange[]
+}
+
+model SubscriptionPlanChange {
+  id                String       @id @default(cuid())
+  businessId        String
+  subscriptionId    String
+  fromPlan          String
+  toPlan            String
+  changedAt         DateTime     @default(now())
+  expiresAt         DateTime?
+  expirationMinutes Int?
+  business          Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  subscription      Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  user              User?        @relation(fields: [userId], references: [id])
+  userId            String?
+
+  @@index([businessId, changedAt])
+}
+
+model AdminFeedback {
+  id         String   @id @default(cuid())
+  businessId String
+  userId     String
+  subject    String
+  message    String   @db.Text
+  status     String   @default("OPEN")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, createdAt])
+  @@index([status, createdAt])
+}
+
+model Customer {
+  id         String    @id @default(cuid())
+  businessId String
+  name       String
+  email      String?
+  phone      String?
+  notes      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  invoices   Invoice[]
+}
+
+model Product {
+  id         String        @id @default(cuid())
+  businessId String
+  name       String
+  price      Decimal       @db.Decimal(18, 2)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  business   Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  items      InvoiceItem[]
+}
+
+model Invoice {
+  id                String        @id @default(cuid())
+  businessId        String
+  customerId        String?
+  publicPaymentToken String        @unique @default(cuid())
+  number        String
+  status        String        @default("DRAFT")
+  currency      String        @default("UGX")
+  subtotal      Decimal       @db.Decimal(18, 2)
+  total         Decimal       @db.Decimal(18, 2)
+  dueAt         DateTime?
+  paidAt        DateTime?
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  business      Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer      Customer?     @relation(fields: [customerId], references: [id])
+  items         InvoiceItem[]
+  payments      Payment[]
+  ledgerEntries LedgerEntry[]
+
+  @@unique([businessId, number])
+}
+
+model InvoiceItem {
+  id        String   @id @default(cuid())
+  invoiceId String
+  productId String?
+  name      String
+  quantity  Int      @default(1)
+  unitPrice Decimal  @db.Decimal(18, 2)
+  total     Decimal  @db.Decimal(18, 2)
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product   Product? @relation(fields: [productId], references: [id])
+}
+
+model LedgerEntry {
+  id                     String               @id @default(cuid())
+  businessId             String
+  invoiceId              String?
+  paymentId              String?
+  subscriptionPaymentId  String?
+  merchantPayoutId       String?              @unique
+  entryType              String
+  direction              String
+  affectsMerchantBalance Boolean              @default(true)
+  amount                 Decimal              @db.Decimal(18, 2)
+  currency               String               @default("UGX")
+  description            String?
+  provider               String?
+  providerReference      String?
+  sourceId               String?
+  createdAt              DateTime             @default(now())
+  business               Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  invoice                Invoice?             @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  payment                Payment?             @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  subscriptionPayment    SubscriptionPayment? @relation(fields: [subscriptionPaymentId], references: [id], onDelete: SetNull)
+  merchantPayout         MerchantPayout?      @relation(fields: [merchantPayoutId], references: [id], onDelete: SetNull)
+
+  @@unique([entryType, sourceId])
+  @@index([businessId, createdAt])
+  @@index([invoiceId, createdAt])
+  @@index([paymentId])
+  @@index([providerReference])
+}
+
+model MerchantPayout {
+  id                    String       @id @default(cuid())
+  businessId            String?
+  sourcePaymentId       String?      @unique
+  phone                 String
+  network               String?
+  amount                Decimal      @db.Decimal(18, 2)
+  fee                   Decimal      @default(0) @db.Decimal(18, 2)
+  currency              String       @default("UGX")
+  provider              String       @default("PAYTOTA")
+  providerReference     String       @unique
+  providerTransactionId String?
+  status                String       @default("PENDING")
+  reason                String?
+  errorMessage          String?      @db.Text
+  createdAt             DateTime     @default(now())
+  completedAt           DateTime?
+  holdUntil             DateTime?
+  business              Business?    @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  sourcePayment         Payment?     @relation(fields: [sourcePaymentId], references: [id], onDelete: SetNull)
+  ledgerEntry           LedgerEntry?
+
+  @@index([businessId, createdAt])
+  @@index([sourcePaymentId])
+  @@index([status, createdAt])
+}
+
+model SubscriptionPayment {
+  id                    String        @id @default(cuid())
+  businessId            String
+  plan                  String
+  amount                Decimal       @db.Decimal(18, 2)
+  currency              String        @default("UGX")
+  phone                 String
+  provider              String        @default("PAYTOTA")
+  providerReference     String        @unique
+  providerTransactionId String?
+  status                String        @default("PENDING")
+  errorMessage          String?       @db.Text
+  createdAt             DateTime      @default(now())
+  completedAt           DateTime?
+  business              Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  ledgerEntries         LedgerEntry[]
+
+  @@index([businessId, createdAt])
+  @@index([status, createdAt])
+}
+
+model Payment {
+  id                String          @id @default(cuid())
+  businessId        String
+  invoiceId         String
+  provider          String
+  providerReference String?
+  providerTransactionId String?
+  amount            Decimal         @db.Decimal(18, 2)
+  currency          String          @default("UGX")
+  status            String          @default("PENDING")
+  pendingInvoiceId  String?         @unique
+  verifiedAt        DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  ledgerEntries     LedgerEntry[]
+  payout            MerchantPayout?
+  business          Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  invoice           Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([provider, providerReference])
+}
+
+model Item {
+  id          String   @id @default(cuid())
+  businessId  String
+  name        String
+  type        String   @default("PRODUCT")
+  description String?
+  price       Decimal  @db.Decimal(18, 2)
+  currency    String   @default("UGX")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}
+
+model AdminAnnouncement {
+  id        String             @id @default(cuid())
+  subject   String
+  message   String             @db.Text
+  audience  String             @default("ALL")
+  createdAt DateTime           @default(now())
+  views     AnnouncementView[]
+}
+
+model AnnouncementView {
+  id             String            @id @default(cuid())
+  announcementId String
+  userId         String
+  seenAt         DateTime          @default(now())
+  announcement   AdminAnnouncement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business       Business?         @relation(fields: [businessId], references: [id])
+  businessId     String?
+
+  @@unique([announcementId, userId])
+}
+
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  adminId     String?
+  actorUserId String?
+  actorType   String   @default("ADMIN")
+  action      String
+  target      String?
+  details     String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model PlatformSettings {
+  id                    String   @id @default("platform")
+  testMode              Boolean  @default(false)
+  basicLive             Int      @default(0)
+  plusLive              Int      @default(25000)
+  proLive               Int      @default(58000)
+  platinumLive          Int      @default(102000)
+  basicTest             Int      @default(0)
+  plusTest              Int      @default(100)
+  proTest               Int      @default(200)
+  platinumTest          Int      @default(300)
+  liveExpirationMinutes Int      @default(43200)
+  testExpirationMinutes Int      @default(3)
+  updatedAt             DateTime @updatedAt
+}

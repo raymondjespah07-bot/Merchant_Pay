@@ -1,4 +1,5 @@
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/next"
 import NavigationLoader from "@/components/navigation-loader";
 import ThemeInit from "@/components/theme-init";
 import AnnouncementCenter from "@/components/announcement-center";
